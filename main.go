@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+const Version = "1.0.0"
+
 var verbose bool
 
 func PrintlnVerbose(a ...interface{}) {
