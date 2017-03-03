@@ -1,5 +1,7 @@
-# arduino101load
-multiplatform launcher for Arduino101 dfu-util flashing utility
+# arduinoSTM32load
+multiplatform launcher for Arduino Star OTTO dfu-util flashing utility
+
+based on arduino101load by Martino Facchin : https://github.com/facchinm
 
 ## Compiling
 
