@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"github.com/kardianos/osext"
 	"github.com/mattn/go-shellwords"
 	"github.com/tj/go-spin"
 	"io"
@@ -13,7 +12,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -29,17 +27,11 @@ var (
 	dfu_path               = flag.String("dfu", "", "Location of dfu-util binaries")
 	bin_file_name          = flag.String("bin", "", "Location of sketch binary")
 	com_port               = flag.String("port", "", "Upload serial port")
-	ble_compliance_string  = flag.String("ble_fw_str", "", "BLE FW ID string")
-	ble_compliance_offset  = flag.Int("ble_fw_pos", 0, "BLE FW ID offset")
-	rtos_compliance_string = flag.String("rtos_fw_str", "", "RTOS FW ID string")
-	rtos_compliance_offset = flag.Int("rtos_fw_pos", 0, "RTOS FW ID offset")
 )
 
 const Version = "2.0.0"
 
-const dfu_flags = "-d,8087:0ABA"
-const rtos_firmware = "quark.bin"
-const ble_firmware = "ble_core.bin"
+const dfu_flags = "-d,0483:df11"
 
 func PrintlnVerbose(a ...interface{}) {
 	if *verbose {
@@ -68,8 +60,6 @@ func main_load() {
 	// Remove ""s from the strings
 	*dfu_path = strings.Replace(*dfu_path, "\"", "", -1)
 	*bin_file_name = strings.Replace(*bin_file_name, "\"", "", -1)
-	*ble_compliance_string = strings.Replace(*ble_compliance_string, "\"", "", -1)
-	*rtos_compliance_string = strings.Replace(*rtos_compliance_string, "\"", "", -1)
 
 	dfu := *dfu_path + "/dfu-util"
 	dfu = filepath.ToSlash(dfu)
@@ -80,13 +70,6 @@ func main_load() {
 	counter := 0
 	board_found := false
 
-	if runtime.GOOS == "darwin" {
-		library_path := os.Getenv("DYLD_LIBRARY_PATH")
-		if !strings.Contains(library_path, *dfu_path) {
-			os.Setenv("DYLD_LIBRARY_PATH", *dfu_path+":"+library_path)
-		}
-	}
-
 	dfu_search_command := []string{dfu, dfu_flags, "-l"}
 	var err error
 
@@ -94,14 +77,14 @@ func main_load() {
 		if counter%10 == 0 {
 			PrintlnVerbose("Waiting for device...")
 		}
-		err, found, _ := launchCommandAndWaitForOutput(dfu_search_command, "sensor_core", false, false)
+		err, found, _ := launchCommandAndWaitForOutput(dfu_search_command, "Internal", false, false)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 		if counter == 40 {
 			fmt.Println("Flashing is taking longer than expected")
-			fmt.Println("Try pressing MASTER_RESET button")
+			// fmt.Println("Try pressing MASTER_RESET button")
 		}
 		if found == true {
 			board_found = true
@@ -113,126 +96,8 @@ func main_load() {
 	}
 
 	if board_found == false {
-		fmt.Println("ERROR: Timed out waiting for Arduino 101 on " + *com_port)
+		fmt.Println("ERROR: Timed out waiting for Arduino Star OTTO on " + *com_port)
 		os.Exit(1)
-	}
-
-	needUpdateRTOS := false
-	needUpdateBLE := false
-
-	if *ble_compliance_string != "" {
-
-		// obtain a temporary filename
-		tmpfile, _ := ioutil.TempFile(os.TempDir(), "dfu")
-		tmpfile.Close()
-		os.Remove(tmpfile.Name())
-
-		// reset DFU interface counter
-		dfu_reset_command := []string{dfu, dfu_flags, "-U", tmpfile.Name(), "--alt", "8", "-K", "1"}
-
-		err, _, _ := launchCommandAndWaitForOutput(dfu_reset_command, "", false, false)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
-		os.Remove(tmpfile.Name())
-
-		// download a piece of BLE firmware
-		dfu_ble_dump_command := []string{dfu, dfu_flags, "-U", tmpfile.Name(), "--alt", "8", "-K", strconv.Itoa(*ble_compliance_offset)}
-
-		err, _, _ = launchCommandAndWaitForOutput(dfu_ble_dump_command, "", false, false)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
-		// check for BLE library compliance
-		PrintlnVerbose("Verifying BLE version:", *ble_compliance_string)
-		found := searchVersionInDFU(tmpfile.Name(), *ble_compliance_string)
-
-		// remove the temporary file
-		os.Remove(tmpfile.Name())
-
-		if !found {
-			needUpdateBLE = true
-		} else {
-			PrintlnVerbose("BLE version: verified")
-		}
-	}
-
-	if *rtos_compliance_string != "" {
-
-		// obtain a temporary filename
-		tmpfile, _ := ioutil.TempFile(os.TempDir(), "dfu")
-		tmpfile.Close()
-		os.Remove(tmpfile.Name())
-
-		// reset DFU interface counter
-		dfu_reset_command := []string{dfu, dfu_flags, "-U", tmpfile.Name(), "--alt", "2", "-K", "1"}
-
-		err, _, _ := launchCommandAndWaitForOutput(dfu_reset_command, "", false, false)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
-		os.Remove(tmpfile.Name())
-
-		// download a piece of RTOS firmware
-		dfu_rtos_dump_command := []string{dfu, dfu_flags, "-U", tmpfile.Name(), "--alt", "2", "-K", strconv.Itoa(*rtos_compliance_offset)}
-
-		err, _, _ = launchCommandAndWaitForOutput(dfu_rtos_dump_command, "", false, false)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
-		// check for BLE library compliance
-		PrintlnVerbose("Verifying RTOS version:", *rtos_compliance_string)
-		found := searchVersionInDFU(tmpfile.Name(), *rtos_compliance_string)
-
-		// remove the temporary file
-		os.Remove(tmpfile.Name())
-
-		if !found {
-			needUpdateRTOS = true
-		} else {
-			PrintlnVerbose("RTOS version: verified")
-		}
-	}
-
-	executablePath, _ := osext.ExecutableFolder()
-	firmwarePath := executablePath + "/firmwares/" + *core + "/"
-
-	if needUpdateBLE || *force == true {
-
-		// flash current BLE firmware to partition 8
-		dfu_ble_flash_command := []string{dfu, dfu_flags, "-D", firmwarePath + ble_firmware, "--alt", "8"}
-
-		fmt.Println("ATTENTION: BLE firmware is being flashed")
-		fmt.Println("DO NOT DISCONNECT THE BOARD")
-
-		err, _, _ = launchCommandAndWaitForOutput(dfu_ble_flash_command, "", true, true)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-	}
-
-	if needUpdateRTOS || *force == true {
-
-		// flash current RTOS firmware to partition 2
-		dfu_rtos_flash_command := []string{dfu, dfu_flags, "-D", firmwarePath + rtos_firmware, "--alt", "2"}
-
-		fmt.Println("ATTENTION: RTOS firmware is being flashed")
-		fmt.Println("DO NOT DISCONNECT THE BOARD")
-
-		err, _, _ = launchCommandAndWaitForOutput(dfu_rtos_flash_command, "", true, true)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
 	}
 
 	// Finally flash the sketch
@@ -241,7 +106,18 @@ func main_load() {
 		os.Exit(0)
 	}
 
-	dfu_download := []string{dfu, dfu_flags, "-D", *bin_file_name, "-v", "--alt", "7", "-R"}
+	// 9600 trick linux
+
+	if runtime.GOOS == "linux" {    // also can be specified to FreeBSD
+    	fmt.Println("Unix/Linux type OS detected")
+		trick_9600 := []string{"stty", "-F", *com_port, "9600"}
+		err, _, _ = launchCommandAndWaitForOutput(trick_9600, "", true, false)
+	}
+
+	// time.Sleep(3 * time.Second)
+
+	// dfu_download := []string{dfu, dfu_flags, "-D", *bin_file_name, "-v", "--alt", "7", "-R"}
+	dfu_download := []string{dfu, dfu_flags, "-a", "0", "-O", *bin_file_name, "-s", "0x08000000", "-f", "0x08000000"}
 	err, _, _ = launchCommandAndWaitForOutput(dfu_download, "", true, false)
 
 	if err == nil {
