@@ -109,7 +109,7 @@ func main_load() {
 	// 9600 trick linux
 
 	if runtime.GOOS == "linux" {    // also can be specified to FreeBSD
-    	fmt.Println("Unix/Linux type OS detected")
+		fmt.Println("Unix/Linux type OS detected")
 		trick_9600 := []string{"stty", "-F", *com_port, "9600"}
 		err, _, _ = launchCommandAndWaitForOutput(trick_9600, "", true, false)
 	}
