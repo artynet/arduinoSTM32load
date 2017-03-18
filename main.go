@@ -116,9 +116,18 @@ func main_load() {
 
 	// time.Sleep(3 * time.Second)
 
+	// dfu-util reference string
 	// dfu_download := []string{dfu, dfu_flags, "-D", *bin_file_name, "-v", "--alt", "7", "-R"}
-	dfu_download := []string{dfu, dfu_flags, "-a", "0", "-O", *bin_file_name, "-s", "0x08000000", "-f", "0x08000000"}
+
+	// dfu-util v0.9
+	// dfu_download := []string{dfu, dfu_flags, "-a", "0", "-O", *bin_file_name, "-s", "0x08000000", "-f", "0x08000000"}
+	// err, _, _ = launchCommandAndWaitForOutput(dfu_download, "", true, false)
+
+	// dfu-util v0.8
+	dfu_download := []string{dfu, dfu_flags, "-a", "0", "-D", *bin_file_name, "-s", "0x08000000"}
+	dfu_resetstm32 := []string{dfu, dfu_flags, "-a", "0", "--reset-stm32"}
 	err, _, _ = launchCommandAndWaitForOutput(dfu_download, "", true, false)
+	err, _, _ = launchCommandAndWaitForOutput(dfu_resetstm32, "", true, false)
 
 	if err == nil {
 		fmt.Println("SUCCESS: Sketch will execute in about 5 seconds.")
