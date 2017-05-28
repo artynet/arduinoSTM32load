@@ -6,7 +6,7 @@ VERSION=`cat main.go| grep "const Version" |cut -f4 -d " " | tr -d '"'`
 
 export GOPATH=$PWD
 
-declare -a target_folders=("linux_amd64" "linux_386" "linux_arm" "darwin_amd64" "windows_386")
+declare -a target_folders=("linux_amd64" "linux_386" "linux_arm" "linux_mips" "darwin_amd64" "windows_386")
 
 rm -rf distrib
 mkdir distrib
